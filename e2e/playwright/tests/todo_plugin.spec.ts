@@ -6,37 +6,97 @@
 // - [*] indicates an assertion (e.g. * Check the title)
 // ***************************************************************
 
-import {expect, test} from '@e2e-support/test_fixture';
-import SlashCommandSuggestions from 'support/components/slash_commands';
-import {fillMessage, getTodoBotDMPageURL} from 'support/utils';
+import { expect, test } from "@e2e-support/test_fixture";
+import SlashCommandSuggestions from "support/components/slash_commands";
+import { fillMessage, getTodoBotDMPageURL } from "support/utils";
+
+test.beforeEach(async ({ page, pw }) => {
+  const { adminClient, adminUser } = await pw.getAdminClient();
+  if (adminUser === null) {
+    throw new Error("can not get adminUser");
+  }
+  const dmURL = await getTodoBotDMPageURL(adminClient, "", adminUser.id);
+  await page.goto(dmURL, { waitUntil: "load" });
+});
 
 export default {
-    connected: () => {
-        test.describe('available commands', () => {
-            test('with just the main command', async ({pages, page, pw}) => {
-               
-            const {adminClient, adminUser} = await pw.getAdminClient();
-            if (adminUser === null) {
-                throw new Error('can not get adminUser');
-            }
-            const dmURL = await getTodoBotDMPageURL(adminClient, '', adminUser.id);
-            await page.goto(dmURL, {waitUntil: 'load'});
+  setup: () => {
+    test("checking available commands", async ({ pages, page, pw }) => {
+      const slash = new SlashCommandSuggestions(
+        page.locator("#suggestionList")
+      );
 
-            const c = new pages.ChannelsPage(page);
-            const slash = new SlashCommandSuggestions(page.locator('#suggestionList'));
+      // # Run command to trigger todo
+      await fillMessage("/todo", page);
 
-            // # Run incomplete command to trigger help
-            await fillMessage('/todo', page);
+      // * Assert suggestions are visible
+      await expect(slash.container).toBeVisible();
 
-            // * Assert suggestions are visible
-            await expect(slash.container).toBeVisible();
+      // * Assert todo [command] is visible
+      await expect(slash.getItemTitleNth(0)).toHaveText("todo [command]");
 
-            // * Assert help is visible
-            await expect(slash.getItemTitleNth(0)).toHaveText('todo [command]');
+      await expect(slash.getItemDescNth(0)).toHaveText(
+        "Available commands: list, add, pop, send, settings, help"
+      );
+    });
+  },
+  actions: () => {
+    test("help action", async ({ pages, page, pw }) => {
+      const c = new pages.ChannelsPage(page);
 
-            await expect(slash.getItemDescNth(0)).toHaveText('Available commands: list, add, pop, send, settings, help');
-            });
-        });
-    },
+      // # Run command to trigger help
+      await c.postMessage("/todo help");
+
+      // # Grab the last post
+      const post = await c.getLastPost();
+      const postBody = post.container.locator(".post-message__text-container");
+
+      // * Assert /todo add [message] command is visible
+      await expect(postBody).toContainText(`add [message]`);
+
+      // * Assert /todo list command is visible
+      await expect(postBody).toContainText("list");
+
+      // * Assert /todo list [listName] command is visible
+      await expect(postBody).toContainText("list [listName]");
+
+      // * Assert /todo pop command is visible
+      await expect(postBody).toContainText("pop");
+
+      // * Assert /todo send [user] [message] command is visible
+      await expect(postBody).toContainText("send [user] [message]");
+
+      // * Assert /todo settings summary [on, off] command is visible
+      await expect(postBody).toContainText("settings summary [on, off]");
+
+      // * Assert /todo settings allow_incoming_task_requests [on, off] command is visible
+      await expect(postBody).toContainText(
+        "settings allow_incoming_task_requests [on, off]"
+      );
+
+      // * Assert /todo help command is visible
+      await expect(postBody).toContainText("help");
+    });
+
+    test("add action", async ({ pages, page, pw }) => {
+      const c = new pages.ChannelsPage(page);
+      const slash = new SlashCommandSuggestions(
+        page.locator("#suggestionList")
+      );
+      const todoMessage = "Don't forget to be awesome";
+
+      // # Run command to add todo
+      await c.postMessage(`/todo add ${todoMessage}`);
+
+      // # Grab the last post
+      const post = await c.getLastPost();
+      const postBody = post.container.locator(".post-message__text-container");
+
+      // * Assert post body has correct title
+      await expect(postBody).toContainText("Added Todo. Todo List:");
+
+      // * Assert added todo is visible
+      await expect(postBody).toContainText(todoMessage);
+    });
+  },
 };
-
