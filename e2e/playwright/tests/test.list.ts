@@ -2,8 +2,12 @@
 // See LICENSE.txt for license information.
 
 import {test} from '@playwright/test';
-import core from './todo_plugin.spec';
+import commands from './todo_plugin.spec';
 
 import '../support/init_test';
 
-test.describe(core.connected);
+// Test if plugin shows the correct suggestions
+test.describe("testing todo command", commands.todo);
+
+// Test if plugin actions work correctly
+test.describe("testing help command", commands.help);
